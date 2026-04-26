@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
 from cryptography import x509
 
-SRVRPATH = "https://uds.otademo.net" #path to update delivery server
+SRVRPATH = "https://uds.otademo.net" #path to update delivery server (otademo.net is a LOCAL domain)
 DEMONSTRATION_MODE = True #adds pauses
 
 # global vars set during runtime
