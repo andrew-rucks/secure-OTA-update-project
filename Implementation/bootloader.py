@@ -1,7 +1,7 @@
 ### ANDREW RUCKS
-### April 25, 2026
+### April 27, 2026
 ### IAS490 - Advanced Topics in Information Assurance & Security
-### Project - "Demonstrating Secure OTA Update Principles with Python"
+### My Project - "Demonstrating Secure OTA Update Principles with Python"
 
 ### This script is a "bootloader" for a mock internet-of-things (IoT) device.
 ### I made it to demonstrate the principles of secure over-the-air (OTA) updating.
@@ -23,7 +23,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
 from cryptography import x509
 
-SRVRPATH = "https://uds.otademo.net" #path to update delivery server (otademo.net is a LOCAL domain)
+SRVRPATH = "https://uds.otademo.net" #path to update delivery server (otademo.net is a local domain for my demonstration)
 DEMONSTRATION_MODE = True #adds pauses
 
 # global vars set during runtime
@@ -33,10 +33,9 @@ update_version = ""
 update_signature = ""
 path_to_update = ""
 downloaded_file = ""
-abort_update = False #triggered by errors in the update pipeline
+abort_update = False #can be triggered by errors in the update pipeline
 
 def main():
-
     debug("\nIOT THERMOSTAT DEVICE", 2)
 
     # load stored variables from disk
@@ -60,32 +59,40 @@ def main():
     return
   
 
+# START THE IOT PROGRAM
 def boot(new_ver_test=False):
     debug("Booting...", 2)
+    
     try:
         subprocess.run(["python3", "current_version.py"], check=True)
+        
     except subprocess.CalledProcessError:
         debug("Device crashed!", 1)
         
+        # restores previous installation if new version fails to boot
         if new_ver_test:
             revert_to_old()
             boot()
     return
 
 
+# QUERY UPDATE SERVER, RETURN BOOLEAN WHETHER UPDATE IS AVAILABLE
 def is_update_available():
     debug("Current software version: " + current_installed_version + "\n", 1)
     debug("Checking for updates...", 2.5)
     try:
+        # this file on the update server has the latest available version number 
         latest_available_version = requests.get(SRVRPATH + "/latest_software_version.txt").text.replace("\n", "")
     except:
         debug("\tProblem with connecting to the update server?\n")
         return False
-    
+        
+    # ensure version number is formatted like n.n.n
     if not re.match(r"^\d+\.\d+\.\d+$", latest_available_version):
         debug("\tProblem with update server?\n")
         return False
 
+    # determine if latest version is higher than the current installed version
     civsplit = current_installed_version.split(".")
     lavsplit = latest_available_version.split(".")
     if (current_installed_version != latest_available_version):
@@ -96,11 +103,14 @@ def is_update_available():
             return True  
 
     debug("\tUpdate not needed.\n", 1)
-            
+
+
+# COLLECT METADATA ABOUT THE UPDATE            
 def fetch_metadata(ver):
     global path_to_update
     global update_version
     global update_signature
+    global abort_update
     
     try:
         request = requests.get(SRVRPATH + "/metadata/"+ ver + ".json")
@@ -117,33 +127,43 @@ def fetch_metadata(ver):
     return
     
 
+# DOWNLOAD UPDATE FILE
 def download_update():
     if abort_update:
         return
     
+    global abort_update
     global downloaded_file
     debug("Downloading...", 2.5)
-    request = requests.get(SRVRPATH + path_to_update)
     
-    raw = json.loads(request.text)
-    
-    downloaded_file = decrypt_content(raw["code"], raw["nonce"], raw["tag"])
+    try:
+        request = requests.get(SRVRPATH + path_to_update) #the update file itself
+        raw = json.loads(request.text)
+        downloaded_file = decrypt_content(raw["code"], raw["nonce"], raw["tag"])
+    except:
+        debug("\tProblem with update server?\n")
+        abort_update = True
+        return
+        
     debug("\tComplete!\n", 1)
     return
     
 
+# VERIFY THE INTEGRITY OF THE UPDATE USING DIGITAL SIGNATURE
 def verify_update():
     if abort_update:
         return
         
     debug("Verifying integrity...", 2.5)
+    
     with open("code_verification.crt", "rb") as file:
     
+        # load public key
         cert = x509.load_pem_x509_certificate(file.read())
-        
         pubkey = cert.public_key()
         
         try:
+            # verify SHA256 signature
             pubkey.verify(update_signature, downloaded_file.encode("utf-8"), padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH), hashes.SHA256())
             debug("\tPassed!\n", 1)
             return True
@@ -153,6 +173,7 @@ def verify_update():
             return False
 
 
+# WRITE UPDATE TO DISK
 def install_update():
     if abort_update:
         return
@@ -175,6 +196,7 @@ def install_update():
     return
     
     
+# RESTORE PREVIOUS VERSION
 def revert_to_old():
     debug("Restoring previous version...", 1)
     
@@ -185,14 +207,16 @@ def revert_to_old():
     shutil.copy("old_version_number", "current_version_number")
     return
     
-    
+  
+# SYMMETRIC DECRYPTION USING STORED KEY
 def decrypt_content(content, nonce, tag):
-        
+
     decryptor = AES.new(decryption_key, AES.MODE_GCM, nonce=base64.b64decode(nonce))
     
     return decryptor.decrypt_and_verify(base64.b64decode(content), base64.b64decode(tag)).decode()
     
 
+# SPECIAL PRINT FUNCTION WITH SLEEP TIME
 def debug(text, eep_time=0):
     print(text)
     if DEMONSTRATION_MODE:
@@ -200,6 +224,7 @@ def debug(text, eep_time=0):
     return
     
 
+# START
 if __name__ == "__main__":
     main()
     
