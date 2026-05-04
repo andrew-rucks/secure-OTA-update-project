@@ -1,5 +1,5 @@
 ### ANDREW RUCKS
-### April 27, 2026
+### May 4, 2026
 ### IAS490 - Advanced Topics in Information Assurance & Security
 ### My Project - "Demonstrating Secure OTA Update Principles with Python"
 
@@ -8,7 +8,7 @@
 ### It checks for updates, downloads update files, verifies integrity, and has automatic rollback just in case.
 ### Updates, in the form of Python scripts, are downloaded over HTTPS and are additionally encrypted.
 ### The update files are digitally signed and verified as well.
-### Note: Update server and code signing infrastructure not included :P
+### Note: Update server and code signing infrastructure not included :P See diagram in the same github folder.
 
 import subprocess
 import requests
@@ -129,11 +129,12 @@ def fetch_metadata(ver):
 
 # DOWNLOAD UPDATE FILE
 def download_update():
+    global abort_update
+    global downloaded_file
+    
     if abort_update:
         return
     
-    global abort_update
-    global downloaded_file
     debug("Downloading...", 2.5)
     
     try:
